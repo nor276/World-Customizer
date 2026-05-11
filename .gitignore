@@ -1,0 +1,32 @@
+# Build outputs
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+*.cache
+*.dll
+*.pdb
+*.exe
+# Exception: vendored Harmony runtime is intentionally committed so builds
+# don't depend on an external mod being installed.
+!lib/0Harmony.dll
+
+# Staging payload (regenerated per build)
+workshop-staging/*
+!workshop-staging/.gitkeep
+
+# Visual Studio / Rider / VS Code
+.vs/
+.idea/
+.vscode/
+*.csproj.user
+
+# OS
+Thumbs.db
+.DS_Store
+
+# NuGet
+*.nupkg
+packages/

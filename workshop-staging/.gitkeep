@@ -1,0 +1,11 @@
+This directory is the build output staged for Workshop publish.
+Build the project with `dotnet build -c Release` to populate it. Contents are produced
+by the StageWorkshopBuild target in WorldCustomizer.csproj.
+
+Expected contents after a clean Release build:
+  WorldCustomizer.dll
+  WorldCustomizer.pdb
+  0Harmony.dll
+  preview.png    (when workshop-assets/preview.png exists)
+
+To publish to Steam Workshop, point the in-game upload tool at this folder.
