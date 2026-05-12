@@ -35,14 +35,6 @@ Workshop displays this as the mod thumbnail.
 Not committed yet — any 512×512 PNG works. Like the bundle, its inclusion in
 `WorkshopPayload` is conditional, so build doesn't fail without it.
 
-## Current dev workflow
-
-The development workflow described in [`../README.md`](../README.md) does
-**not** use `workshop-assets/WorldCustomizer_bundle`. Instead, the mod runs
-out of a subscribed workshop folder whose existing `_bundle` file serves as
-the marker. That's why this folder is currently bundle-less and the staged
-output isn't Workshop-publishable.
-
 ## Excluded from the staged folder
 
 This README is project documentation; the build only copies files explicitly
