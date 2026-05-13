@@ -362,6 +362,265 @@ the wing force directly. `multiplier = 0` is functional vacuum (planes
 drop); `multiplier = 10` is dense atmosphere (planes accelerate hard but
 remain flyable).
 
+### SCU / pickup range (`ScuPickupRangeMultiplier`)
+
+| | |
+|---|---|
+| User-facing label | `Pickup range` |
+| Slider range | `0.1 – 10.0` (default `1.0`) |
+| Settings field | `Live.ScuPickupRangeMultiplier` |
+| Engine target | `ModuleItemPickup.m_PickupRange` (private float, vendor-prefab default `3f`; SCU prefabs override to ~50f) |
+| Patch | `Patches/Generation/ScuPatches.cs` → `PickupRangePatch` |
+
+**Mechanics.** Postfix on `ModuleItemPickup.OnSpawn` plus an
+`ApplyToAllLoaded` walk through `FindObjectsOfType<ModuleItemPickup>()` at
+mode-switch. Caches originals per `GetInstanceID` and writes
+`original × multiplier`, floored at `0.1f`.
+
+**Doubt / caveats.** Scope is "every block with a pickup module" — not just
+SCUs. Conveyor pickup arms get scaled too. Multiplicative scaling preserves
+each block's relative range (long-range SCU stays longer-ranged than a short
+conveyor pickup). The same field is also read by `ModuleItemHolderBeam` for
+its drop-range check at line 322 of `ModuleItemHolderBeam.cs`, so the two
+behaviors stay consistent automatically.
+
+### SCU / beam pull strength (`ScuBeamStrengthMultiplier`)
+
+| | |
+|---|---|
+| User-facing label | `Beam pull strength` |
+| Slider range | `0.1 – 10.0` (default `1.0`) |
+| Settings field | `Live.ScuBeamStrengthMultiplier` |
+| Engine target | `ModuleItemHolderBeam.m_BeamStrength` (private float, vanilla default `250f`) |
+| Patch | `Patches/Generation/ScuPatches.cs` → `BeamStrengthPatch` |
+
+**Mechanics.** Same OnSpawn + `ApplyToAllLoaded` pattern. Scales the pull
+force the beam applies to held chunks. Higher = chunks accelerate toward
+the stack faster.
+
+**Doubt / caveats.** The engine clamps the final force vector at `2000f`
+inside `ModuleItemHolderBeam.UpdateFloat` (line 619 of the source). For
+already-strong beams, multipliers above ~`8×` saturate at that ceiling. The
+clamp also limits how violently a chunk can be yanked into a moving tech,
+which mitigates the "mobile tech catches up to its own chunks" case but
+doesn't eliminate it entirely — at very high multipliers chunks can still
+overshoot the stack briefly before damping settles them.
+
+### SCU / stack capacity (`ScuStackCapacityMultiplier`)
+
+| | |
+|---|---|
+| User-facing label | `Stack capacity` |
+| Slider range | `0.5 – 10.0` (default `1.0`) |
+| Settings field | `Live.ScuStackCapacityMultiplier` |
+| Engine target | `ModuleItemHolder.m_CapacityPerStack` (default `10`, set per prefab) via the public `OverrideStackCapacity(int)` method |
+| Patch | `Patches/Generation/ScuPatches.cs` → `StackCapacityPatch` |
+
+**Mechanics.** Same OnSpawn + `ApplyToAllLoaded` pattern. The write path
+uses the existing public `OverrideStackCapacity` API on `ModuleItemHolder`
+— no reflection needed for the setter. We still read `m_CapacityPerStack`
+via reflection to cache the original (the field is private).
+`Mathf.RoundToInt(original × multiplier)` floored at 1.
+
+**Doubt / caveats.** Visual stack height is unbounded —
+`ModuleItemHolderBeam.GetItemHeightInStack` is `(itemIndex * 2 + 1) × itemRadius
++ m_BeamBaseHeight`, computed live. High capacity just produces a tall stack
+column. Capacity below `1` is clamped to `1` so we never write a value that
+would assert-fail somewhere downstream.
+
+### SCU / lift height (`ScuLiftHeightMultiplier`)
+
+| | |
+|---|---|
+| User-facing label | `Lift height` |
+| Slider range | `0.5 – 5.0` (default `1.0`) |
+| Settings field | `Live.ScuLiftHeightMultiplier` |
+| Engine targets | `ModuleItemHolderBeam.m_BeamBaseHeight` (per-instance, vanilla `1f`, clamped `[0.01, 10]`) + `Globals.holdBeamFloatParams.heightCorrectionLiftFactor` (global, vanilla `0.5f`) |
+| Patches | `LiftHeightPatch` (per-instance) + `ScuGlobals.ApplyLiftCorrection` (global, one-shot at `ApplyTier2`) |
+
+**Mechanics.** Bundles two complementary mutations:
+
+* **`m_BeamBaseHeight`** scales the offset above the stack base where the
+  lowest held item sits. Raising it raises the *target* the in-flight
+  chunk is being pulled toward.
+* **`heightCorrectionLiftFactor`** biases the in-flight pull-force
+  vertically (see `ModuleItemHolderBeam.UpdateFloat`, the term
+  `vector3 += upDir * num8`). Scaling this makes chunks rise toward the
+  stack height *first*, then approach horizontally, instead of taking a
+  diagonal scoop path.
+
+Combined, multiplier 3.0 keeps SCUs from dragging chunks through wheels /
+terrain / nearby blocks on the way in.
+
+**Doubt / caveats.** Original `m_BeamBaseHeight` cached per `GetInstanceID`
+and clamped to the engine's `[Range(0.01, 10)]` after scaling. The global
+lift factor is cached on first apply and restored on `KickStart.DeInit` so
+the mutation doesn't leak across mod reloads. At very high lift (×5) on
+small SCUs you may see chunks launch up out of the holder briefly before
+the pull settles them — engine clamps the force vector at `2000f` so it
+won't escape, but the visual is a bit bouncy.
+
+### SCU / pickup speed (`ScuPickupSpeedMultiplier`)
+
+| | |
+|---|---|
+| User-facing label | `Pickup speed` |
+| Slider range | `0.1 – 10.0` (default `1.0`) |
+| Settings field | `Live.ScuPickupSpeedMultiplier` |
+| Engine target | `ModuleItemPickup.m_VisionRefreshInterval` (vanilla `1.0` second) — *inverse* scaled |
+| Patch | `PickupSpeedPatch` |
+
+**Mechanics.** Per-instance OnSpawn postfix + `ApplyToAllLoaded` walk.
+`m_VisionRefreshInterval` is the time between bucket rebuilds (the SCU's
+sorted list of in-range visibles). Lower interval = bucket refills more
+often = sustained pickup rate is higher. Scaled inverse:
+`interval = original / multiplier`, floored at `0.05s` so we don't
+rebuild every frame and thrash the bucket sort.
+
+**Doubt / caveats.** Independent of `ScuItemsPerTickMultiplier` — that's
+how many items get picked per Update tick *between* refreshes. The two
+stack: at high multiplier on both, an SCU can vacuum a chunk field in
+seconds. Floor at `0.05s` is below the typical `Update` frequency, so
+further multiplier increases past about `20×` stop helping (refresh hits
+the floor).
+
+### SCU / items per tick (`ScuItemsPerTickMultiplier`)
+
+| | |
+|---|---|
+| User-facing label | `Items per tick` |
+| Slider range | `1.0 – 10.0` (default `1.0`) |
+| Settings field | `Live.ScuItemsPerTickMultiplier` |
+| Engine target | `ModuleItemPickup.TakeOneItem` (invoked extra times per Update tick) |
+| Patch | `MultiPickPatch` (postfix on `TryPickupItems`) |
+
+**Mechanics.** Vanilla `TakeOneItem` picks one item per tick (there's a
+`break` after success when no filter callback is set). Postfix on the
+caller `TryPickupItems` calls `TakeOneItem` an additional
+`Round(multiplier) - 1` times per tick, re-selecting the optimal stack
+(non-full + fewest items + `IsPickupStack` ok) between each call. Each
+call drains one more item from the in-range bucket the original
+populated. Stops early if the bucket is empty or all stacks are full.
+
+**Doubt / caveats.** `TakeOneItem` and `IsPickupStack` are private —
+called via reflection, `MethodInfo` cached on first fire. The reflection
+cost is ~negligible at multiplier `2-3` (1-2 extra calls per Update tick
+on each SCU). Reflection lookup failures (e.g. engine renames) cause the
+patch to disable itself silently. Distinct from `ScuPickupSpeedMultiplier`
+— this changes items-per-tick, that changes ticks-per-second. The two
+multiply.
+
+### Max loose items (`MaxLooseItemCount`)
+
+| | |
+|---|---|
+| User-facing label | `Max loose items (cap)` |
+| Slider range | `500 – 20000` integer (default `5000`) |
+| Settings field | `Live.MaxLooseItemCount` |
+| Engine target | `QualitySettingsExtended.MaxLooseItemCount` (static getter) |
+| Patch | `Patches/Generation/LooseItemPatches.cs` → `MaxLooseItemPatch` |
+
+**Mechanics.** Postfix on the static getter
+`QualitySettingsExtended.MaxLooseItemCount` returns our override value. TT's
+existing `ManLooseChunkLimiter` reads that getter once per `m_CountInterval`
+tick, and when the total loose chunk+block count exceeds the cap, recycles
+the worst-scoring loose `Visible`. The scoring formula already does most of
+what you'd want from a culler: weighted by player distance, clump density,
+per-type duplicate count (so high-volume "junk" types like Fibron get
+removed first automatically), on-screen factor (avoids despawning items the
+player is looking at), and a moving-rigidbody bonus that lets settled items
+go before active ones.
+
+**Doubt / caveats.** The vanilla default in TT's quality presets is often
+`0` (= unlimited), which is why aggressive yield/density multipliers blow
+through the PhysX MBP broadphase 64K-shapes-per-region cap. The default of
+`5000` here is well below the danger zone even when combined with high
+`ScuStackCapacityMultiplier` and tech-block counts. Patch path is a getter
+Postfix rather than a field write because
+`QualitySettingsExtended.CurrentQualityLevel` is private and returns its
+struct by value — mutating the returned copy is a no-op.
+
+### Loose item lifetime (`LooseItemLifetimeMultiplier`)
+
+| | |
+|---|---|
+| User-facing label | `Loose item lifetime` |
+| Slider range | `0.1 – 5.0` (default `1.0`) |
+| Settings field | `Live.LooseItemLifetimeMultiplier` |
+| Engine targets | `Globals.autoExpireTimeoutChunks` (vanilla 300s), `autoExpireTimeoutBlocks`, `autoExpireTimeoutCrates` — all three scale together |
+| Patch | `Patches/Generation/LooseItemPatches.cs` → `LooseItemPatches.ApplyLooseItemLifetime` |
+
+**Mechanics.** Direct field write at `ApplyTier2`. TT's `Visible` class
+already implements the loose-item auto-expire state machine (`NotUsed →
+Inactive → WaitingForTimeout → ReadyToDestroy`). Held items stay
+`Inactive`. When a held item is released back to the ground, the timer
+re-arms with the new (post-scale) timeout. Multiplier `0.2` = 60s lifetime,
+keeps the steady-state count low without hitting the
+`MaxLooseItemCount`-driven emergency recycle path. Multiplier `5.0` = 25
+minutes, hoarder mode.
+
+**Doubt / caveats.** Originals are cached on first apply and restored on
+`KickStart.DeInit` so the mutation doesn't leak across mod reloads. Items
+that are mid-timeout when the multiplier changes keep their current timer
+— the new value is read only when a timer is next set.
+
+---
+
+## Physics-engine limits — read before pushing sliders to the maximum
+
+TerraTech runs on Unity 2018.4, which ships PhysX 3.x. PhysX 3 has a hard
+ceiling of **65,536 physics objects in a single broadphase region** — a
+16-bit index limit baked into the engine. Modern Unity and modern PhysX
+both raise or eliminate this cap, but a TT-version upgrade is not on the
+table for this mod.
+
+The mod itself does nothing dangerous at default settings. The risk shows
+up when you **stack several sliders toward the top of their range** at
+once. The biggest contributors to the physics-shape count are:
+
+* **Resource density** (`ResourceDensityMultiplier`) — densifying the
+  scenery scatter is the largest single physics-shape multiplier. At `3.0`
+  a typical tile gains ~1000 additional non-mergeable scenery objects, and
+  ~9 tiles are loaded around the player at any time. Most of those objects
+  have one or more colliders.
+* **Resource yield** (`ResourceYieldMultiplier`) — high yield × high
+  density turns a single mining pass into thousands of loose chunks.
+  Loose chunks each carry their own colliders.
+* **Max loose items** (`MaxLooseItemCount`) — capping this is a defense,
+  but the cap only covers loose chunks and dropped blocks. It does **not**
+  count scenery scatter or AI-tech blocks.
+* **AI-tech spawns from other mods** — Advanced AI, large corp packs, and
+  similar mods can put many enemy techs on screen at once. Each tech can
+  be 200–500 collider shapes.
+
+When all of these accumulate past ~65K shapes in the active region, Unity
+crashes natively in `BpBroadPhaseMBP.cpp` with no managed exception (you
+will see repeated `[Physics.PhysX] MBP::addObject: 64K objects in single
+region reached` log lines just before the crash).
+
+### Recommended limits
+
+Treat the slider maxima as theoretical, not safe. As a rule of thumb,
+keep the product of (`ResourceDensityMultiplier × ResourceYieldMultiplier
+× ScuStackCapacityMultiplier`) under ~30 in normal play, and lower if you
+have many heavy-content mods (corp packs, AI mods, weapon packs)
+installed. If you want more headroom, lower `ResourceDensityMultiplier`
+first — it's the strongest physics-shape multiplier in the list.
+
+### Possible fix beyond the mod's scope
+
+It is technically possible to switch the engine's broadphase algorithm
+from MultiboxPruning (per-region 64K cap) to SweepAndPrune (no per-region
+cap, scales by performance instead of crashing) by editing the
+`globalgamemanagers` asset in the game's install directory. This is an
+offline binary edit, not something the mod can do safely at runtime —
+PhysX initialises before any managed code has a chance to run. SAP also
+costs more broadphase CPU as objects spread across the world, so it's a
+trade, not a free win. If you're comfortable editing Unity asset binaries
+and willing to redo it after game updates, this raises the ceiling
+considerably; if not, just avoid the extreme corners of the slider space
+and you'll be fine.
+
 ---
 
 ## What's *not* covered here

@@ -92,10 +92,27 @@ namespace WorldCustomizer.Patches.Generation
             ResourceYieldPatch.ApplyToAllLoaded(l.ResourceYieldMultiplier);
             AutoMinerSpeedPatch.ApplyToAllLoaded(l.AutoMinerSpeedMultiplier);
 
+            // SCU / pickup / item-holder family — same walk-then-apply pattern.
+            PickupRangePatch.ApplyToAllLoaded(l.ScuPickupRangeMultiplier);
+            BeamStrengthPatch.ApplyToAllLoaded(l.ScuBeamStrengthMultiplier);
+            StackCapacityPatch.ApplyToAllLoaded(l.ScuStackCapacityMultiplier);
+            LiftHeightPatch.ApplyToAllLoaded(l.ScuLiftHeightMultiplier);
+            PickupSpeedPatch.ApplyToAllLoaded(l.ScuPickupSpeedMultiplier);
+
+            // Global lift-correction (paired with LiftHeightPatch's per-instance work).
+            // MultiPickPatch reads the multiplier directly each tick — no apply-time walk
+            // needed for that one.
+            ScuGlobals.ApplyLiftCorrection(l.ScuLiftHeightMultiplier);
+
+            // Loose-item physics-pressure relief: scale autoExpire timers. The MaxLooseItemCount
+            // cap is applied via Harmony getter Postfix (MaxLooseItemPatch), so no call needed
+            // here for that piece.
+            LooseItemPatches.ApplyLooseItemLifetime(l.LooseItemLifetimeMultiplier);
+
             // Drill speed and HeightMultiplier are read on demand by their own postfixes —
             // no walk needed at apply time.
 
-            KickStart.Log($"ApplyTier2: density={l.ResourceDensityMultiplier:0.00} yield={l.ResourceYieldMultiplier:0.00} drill={l.DrillSpeedMultiplier:0.00} miner={l.AutoMinerSpeedMultiplier:0.00} atmo={l.AtmosphereDensityMultiplier:0.00}");
+            KickStart.Log($"ApplyTier2: density={l.ResourceDensityMultiplier:0.00} yield={l.ResourceYieldMultiplier:0.00} drill={l.DrillSpeedMultiplier:0.00} miner={l.AutoMinerSpeedMultiplier:0.00} atmo={l.AtmosphereDensityMultiplier:0.00} scuRange={l.ScuPickupRangeMultiplier:0.00} scuBeam={l.ScuBeamStrengthMultiplier:0.00} scuStack={l.ScuStackCapacityMultiplier:0.00} scuLift={l.ScuLiftHeightMultiplier:0.00} scuSpeed={l.ScuPickupSpeedMultiplier:0.00} scuMulti={l.ScuItemsPerTickMultiplier:0.00} maxLoose={l.MaxLooseItemCount} lifetime×{l.LooseItemLifetimeMultiplier:0.00}");
         }
 
     }

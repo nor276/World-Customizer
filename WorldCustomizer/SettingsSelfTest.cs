@@ -91,6 +91,14 @@ namespace WorldCustomizer
                 original.Live.DrillSpeedMultiplier        = 5.0f;
                 original.Live.AutoMinerSpeedMultiplier    = 4.0f;
                 original.Live.AtmosphereDensityMultiplier = 1.5f;
+                original.Live.ScuPickupRangeMultiplier    = 2.5f;
+                original.Live.ScuBeamStrengthMultiplier   = 3.5f;
+                original.Live.ScuStackCapacityMultiplier  = 4.0f;
+                original.Live.ScuLiftHeightMultiplier     = 2.0f;
+                original.Live.ScuPickupSpeedMultiplier    = 3.0f;
+                original.Live.ScuItemsPerTickMultiplier   = 4.5f;
+                original.Live.MaxLooseItemCount           = 7500;
+                original.Live.LooseItemLifetimeMultiplier = 0.5f;
 
                 if (!SettingsStore.SaveToFile(path, original))
                     return Fail(nameof(RoundTripCustomized), "save returned false");
@@ -114,12 +122,28 @@ namespace WorldCustomizer
             s.Creation.BiomeChaos = -1f;
             s.Live.DrillSpeedMultiplier = -5f;
             s.Live.AtmosphereDensityMultiplier = 100f;
+            s.Live.ScuPickupRangeMultiplier = 999f;
+            s.Live.ScuBeamStrengthMultiplier = -1f;
+            s.Live.ScuStackCapacityMultiplier = 0f;
+            s.Live.ScuLiftHeightMultiplier = 100f;
+            s.Live.ScuPickupSpeedMultiplier = -5f;
+            s.Live.ScuItemsPerTickMultiplier = 0.1f;
+            s.Live.MaxLooseItemCount = 9999999;
+            s.Live.LooseItemLifetimeMultiplier = -2f;
             s.Sanitize();
 
             if (s.Creation.ContinentSize > 5.0f)            return Fail(nameof(SanitizeClampsBadValues), "ContinentSize not clamped high");
             if (s.Creation.BiomeChaos < 0f)                 return Fail(nameof(SanitizeClampsBadValues), "BiomeChaos not clamped low");
             if (s.Live.DrillSpeedMultiplier < 0f)           return Fail(nameof(SanitizeClampsBadValues), "DrillSpeed not clamped low");
             if (s.Live.AtmosphereDensityMultiplier > 10f)   return Fail(nameof(SanitizeClampsBadValues), "Atmosphere not clamped high");
+            if (s.Live.ScuPickupRangeMultiplier > 10f)      return Fail(nameof(SanitizeClampsBadValues), "ScuPickupRange not clamped high");
+            if (s.Live.ScuBeamStrengthMultiplier < 0.1f)    return Fail(nameof(SanitizeClampsBadValues), "ScuBeamStrength not clamped low");
+            if (s.Live.ScuStackCapacityMultiplier < 0.5f)   return Fail(nameof(SanitizeClampsBadValues), "ScuStackCapacity not clamped low");
+            if (s.Live.ScuLiftHeightMultiplier > 5f)        return Fail(nameof(SanitizeClampsBadValues), "ScuLiftHeight not clamped high");
+            if (s.Live.ScuPickupSpeedMultiplier < 0.1f)     return Fail(nameof(SanitizeClampsBadValues), "ScuPickupSpeed not clamped low");
+            if (s.Live.ScuItemsPerTickMultiplier < 1f)      return Fail(nameof(SanitizeClampsBadValues), "ScuItemsPerTick not clamped low");
+            if (s.Live.MaxLooseItemCount > 20000)           return Fail(nameof(SanitizeClampsBadValues), "MaxLooseItemCount not clamped high");
+            if (s.Live.LooseItemLifetimeMultiplier < 0.1f)  return Fail(nameof(SanitizeClampsBadValues), "LooseItemLifetime not clamped low");
             return true;
         }
 
@@ -232,6 +256,14 @@ namespace WorldCustomizer
             if (al.DrillSpeedMultiplier        != bl.DrillSpeedMultiplier)        return false;
             if (al.AutoMinerSpeedMultiplier    != bl.AutoMinerSpeedMultiplier)    return false;
             if (al.AtmosphereDensityMultiplier != bl.AtmosphereDensityMultiplier) return false;
+            if (al.ScuPickupRangeMultiplier    != bl.ScuPickupRangeMultiplier)    return false;
+            if (al.ScuBeamStrengthMultiplier   != bl.ScuBeamStrengthMultiplier)   return false;
+            if (al.ScuStackCapacityMultiplier  != bl.ScuStackCapacityMultiplier)  return false;
+            if (al.ScuLiftHeightMultiplier     != bl.ScuLiftHeightMultiplier)     return false;
+            if (al.ScuPickupSpeedMultiplier    != bl.ScuPickupSpeedMultiplier)    return false;
+            if (al.ScuItemsPerTickMultiplier   != bl.ScuItemsPerTickMultiplier)   return false;
+            if (al.MaxLooseItemCount           != bl.MaxLooseItemCount)           return false;
+            if (al.LooseItemLifetimeMultiplier != bl.LooseItemLifetimeMultiplier) return false;
 
             return true;
         }

@@ -28,6 +28,8 @@ the save's terrain.
 **Gameplay — changeable later.** Multipliers that are safe to retune after
 the world exists.
 
+*Resources & combat:*
+
 | Setting | Range | Effect |
 |---|---|---|
 | Resource density | 0.0 – 5.0 | Scales how much scatter (rocks, trees, ore) populates the world. |
@@ -36,8 +38,46 @@ the world exists.
 | AutoMiner speed | 0.0 – 50.0 | Extraction rate of underground reservoirs. |
 | Atmosphere density | 0.0 – 10.0 | Wing lift force. 0 = vacuum (planes drop). 10 = dense (planes fly aggressively). |
 
+*SCU & pickup behavior:*
+
+| Setting | Range | Effect |
+|---|---|---|
+| Pickup range | 0.1 – 10.0 | Scales every pickup module's reach (SCUs, conveyor pickups). Vanilla relative ranges are preserved — long-range SCUs stay long-range. |
+| Beam pull strength | 0.1 – 10.0 | Scales the tractor-beam force on held items. Engine caps the final force, so very high multipliers saturate. |
+| Stack capacity | 0.5 – 10.0 | How many items a single stack on an SCU / conveyor / holder can hold. Visual stacks just grow taller. |
+| Lift height | 0.5 – 5.0 | Raises items higher above the holder during the in-flight pull so they clear obstacles before settling onto the stack. |
+| Pickup speed | 0.1 – 10.0 | How often the SCU "looks" for new items in range. Higher = faster sustained pickup throughput. |
+| Items per tick | 1.0 – 10.0 | How many items the SCU can grab per game tick. Stacks multiplicatively with Pickup speed. |
+
+*Loose-item budget:*
+
+| Setting | Range | Effect |
+|---|---|---|
+| Max loose items | 500 – 20000 | Hard cap on total loose chunks + dropped blocks in the world. When exceeded, the game culls the worst-scoring loose item (far from player + clumped + many duplicates of that type) until back under cap. |
+| Loose item lifetime | 0.1 – 5.0 | Multiplier on how long a loose chunk/block/crate stays in the world before despawning. Vanilla ≈ 5 min × this value. Held items aren't affected. |
+
 Per-world settings are saved alongside the save file in
 `<savefile>.worldgen.json`, so each world remembers its own customization.
+
+### Notes on extreme settings
+
+Pushing several sliders toward the high end of their range at the same
+time can make the world fill up faster than TerraTech's physics engine
+was designed to handle. The mod includes:
+
+* A **confirm-time warning** if `Resource density × Resource yield`
+  exceeds the danger zone, so you can dial back before entering.
+* The **Max loose items** and **Loose item lifetime** sliders give you
+  direct control over how aggressively old loose items get culled.
+
+If you want to push past where the engine is comfortable, there is an
+optional offline utility at [`scripts/patch_broadphase.py`](scripts/patch_broadphase.py)
+that switches Unity's PhysX broadphase algorithm from the per-region-capped
+default to one with no hard ceiling. It's run once per game install; it
+trades a hard crash for slower performance under extreme loads. Read the
+script header and [FIELDS.md](FIELDS.md#physics-engine-limits--read-before-pushing-sliders-to-the-maximum)
+before running. Most players won't need this — keeping the high sliders
+moderate is enough.
 
 ## Layout
 

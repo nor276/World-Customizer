@@ -116,6 +116,20 @@ namespace WorldCustomizer.UI
             l.AutoMinerSpeedMultiplier    = LabelSlider("AutoMiner speed",   l.AutoMinerSpeedMultiplier,    0.0f, 50.0f, "0.0");
             l.AtmosphereDensityMultiplier = LabelSlider("Atmosphere density",l.AtmosphereDensityMultiplier, 0.0f, 10.0f, "0.00");
 
+            GUILayout.Space(12);
+            GUILayout.Label("SCU / Pickup (changeable later)", BoldStyle());
+            l.ScuPickupRangeMultiplier   = LabelSlider("Pickup range",       l.ScuPickupRangeMultiplier,   0.1f, 10.0f, "0.00");
+            l.ScuBeamStrengthMultiplier  = LabelSlider("Beam pull strength", l.ScuBeamStrengthMultiplier,  0.1f, 10.0f, "0.00");
+            l.ScuStackCapacityMultiplier = LabelSlider("Stack capacity",     l.ScuStackCapacityMultiplier, 0.5f, 10.0f, "0.00");
+            l.ScuLiftHeightMultiplier    = LabelSlider("Lift height",        l.ScuLiftHeightMultiplier,    0.5f,  5.0f, "0.00");
+            l.ScuPickupSpeedMultiplier   = LabelSlider("Pickup speed",       l.ScuPickupSpeedMultiplier,   0.1f, 10.0f, "0.00");
+            l.ScuItemsPerTickMultiplier  = LabelSlider("Items per tick",     l.ScuItemsPerTickMultiplier,  1.0f, 10.0f, "0.00");
+
+            GUILayout.Space(12);
+            GUILayout.Label("Loose-item budget (changeable later)", BoldStyle());
+            l.MaxLooseItemCount           = Mathf.RoundToInt(LabelSlider("Max loose items (cap)", l.MaxLooseItemCount, 500f, 20000f, "0"));
+            l.LooseItemLifetimeMultiplier = LabelSlider("Loose item lifetime", l.LooseItemLifetimeMultiplier, 0.1f, 5.0f, "0.00");
+
             GUILayout.EndScrollView();
 
             GUILayout.Space(8);
@@ -184,6 +198,23 @@ namespace WorldCustomizer.UI
         private void ConfirmPressed()
         {
             m_Working.Sanitize();
+
+            if (LiveSettings.ShouldWarnAboutPhysicsLoad(m_Working.Live, out _, out string warning))
+            {
+                PopupHelper.ShowYesNo(
+                    message: warning,
+                    acceptLabel: "Continue",
+                    declineLabel: "Back",
+                    onAccept: DoConfirm,
+                    onDecline: () => { /* stay on customize screen */ });
+                return;
+            }
+
+            DoConfirm();
+        }
+
+        private void DoConfirm()
+        {
             Settings result = m_Working;
             Action<Settings> onConfirm = m_OnConfirm;
             CloseAndDispose();

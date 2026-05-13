@@ -55,6 +55,14 @@ namespace WorldCustomizer
             copy.Live.DrillSpeedMultiplier        = src.Live.DrillSpeedMultiplier;
             copy.Live.AutoMinerSpeedMultiplier    = src.Live.AutoMinerSpeedMultiplier;
             copy.Live.AtmosphereDensityMultiplier = src.Live.AtmosphereDensityMultiplier;
+            copy.Live.ScuPickupRangeMultiplier    = src.Live.ScuPickupRangeMultiplier;
+            copy.Live.ScuBeamStrengthMultiplier   = src.Live.ScuBeamStrengthMultiplier;
+            copy.Live.ScuStackCapacityMultiplier  = src.Live.ScuStackCapacityMultiplier;
+            copy.Live.ScuLiftHeightMultiplier     = src.Live.ScuLiftHeightMultiplier;
+            copy.Live.ScuPickupSpeedMultiplier    = src.Live.ScuPickupSpeedMultiplier;
+            copy.Live.ScuItemsPerTickMultiplier   = src.Live.ScuItemsPerTickMultiplier;
+            copy.Live.MaxLooseItemCount           = src.Live.MaxLooseItemCount;
+            copy.Live.LooseItemLifetimeMultiplier = src.Live.LooseItemLifetimeMultiplier;
             return copy;
         }
 
@@ -180,6 +188,39 @@ namespace WorldCustomizer
     [Serializable]
     public class LiveSettings
     {
+        /// <summary>Threshold for the confirm-time "extreme settings" warning. The product
+        /// <see cref="ResourceDensityMultiplier"/> × <see cref="ResourceYieldMultiplier"/>
+        /// is the largest single driver of physics-shape count: density scales scenery
+        /// scatter per tile, yield scales chunks spawned per resource node. Above this
+        /// product the world is likely to slow noticeably and, on a stock-install game,
+        /// risks hitting PhysX 3's 64K-per-region cap and crashing natively. The two SCU
+        /// range / beam multipliers don't add objects so they don't enter this product.
+        /// Stack capacity does keep held items alive longer but isn't an objects-per-tile
+        /// driver, so it stays out too — the warning targets the dominant pair.</summary>
+        public const float PhysicsRiskWarningThreshold = 15f;
+
+        /// <summary>True iff the product of density × yield exceeds the warning threshold.
+        /// On true, <paramref name="product"/> is filled with the actual value and
+        /// <paramref name="message"/> with a user-facing warning string suitable for a
+        /// confirm-time popup.</summary>
+        public static bool ShouldWarnAboutPhysicsLoad(LiveSettings l, out float product, out string message)
+        {
+            product = l.ResourceDensityMultiplier * l.ResourceYieldMultiplier;
+            if (product > PhysicsRiskWarningThreshold)
+            {
+                message =
+                    $"Resource density × yield = {product:0.0}× vanilla.\n" +
+                    "At this level the world may slow noticeably as resources accumulate, " +
+                    "and on a stock TerraTech install the physics engine can hit a hard limit " +
+                    "and crash with extreme play.\n\n" +
+                    "Continue with these settings?";
+                return true;
+            }
+            message = null;
+            return false;
+        }
+
+
         /// <summary>Multiplier on resource-tagged scenery distribution weight. Range 0–5.</summary>
         public float ResourceDensityMultiplier = 1.0f;
 
@@ -195,6 +236,48 @@ namespace WorldCustomizer
         /// <summary>Multiplier on wing lift force. 0 = vacuum (planes drop), 10 = thick. Range 0–10.</summary>
         public float AtmosphereDensityMultiplier = 1.0f;
 
+        /// <summary>Multiplier on every ModuleItemPickup.m_PickupRange. Scales each block proportionally
+        /// so vanilla relative ranges (long SCU vs short conveyor pickup) are preserved. Range 0.1–10.</summary>
+        public float ScuPickupRangeMultiplier = 1.0f;
+
+        /// <summary>Multiplier on ModuleItemHolderBeam.m_BeamStrength. Higher = chunks pull faster.
+        /// Engine caps the resulting force at 2000 internally, so very high multipliers saturate. Range 0.1–10.</summary>
+        public float ScuBeamStrengthMultiplier = 1.0f;
+
+        /// <summary>Multiplier on ModuleItemHolder.m_CapacityPerStack (rounded). Stack visualization is
+        /// unbounded — high values just grow taller. Range 0.5–10.</summary>
+        public float ScuStackCapacityMultiplier = 1.0f;
+
+        /// <summary>Multiplier on ModuleItemHolderBeam.m_BeamBaseHeight (raises where chunks settle
+        /// in the stack) AND Globals.holdBeamFloatParams.heightCorrectionLiftFactor (biases the
+        /// in-flight trajectory upward first, so chunks rise over obstacles before approaching
+        /// the stack horizontally). Range 0.5–5.</summary>
+        public float ScuLiftHeightMultiplier = 1.0f;
+
+        /// <summary>Inverse multiplier on ModuleItemPickup.m_VisionRefreshInterval. Vanilla is 1s
+        /// between bucket rebuilds; multiplier 5 → 0.2s refresh → 5× faster steady-state pickup.
+        /// Range 0.1–10.</summary>
+        public float ScuPickupSpeedMultiplier = 1.0f;
+
+        /// <summary>Multiplier on items grabbed per Update tick by ModuleItemPickup.TryPickupItems.
+        /// Vanilla picks one item per tick from the in-range bucket; multiplier N picks up to N
+        /// items per tick by re-invoking TakeOneItem. Stacks with refresh-interval scaling. Range
+        /// 1–10.</summary>
+        public float ScuItemsPerTickMultiplier = 1.0f;
+
+        /// <summary>Hard cap on total loose chunks+blocks in the world. TT's ManLooseChunkLimiter
+        /// recycles the worst-scoring loose item once this cap is exceeded — using weighted
+        /// distance, clump density, and per-type duplicate count (so junk piles up = junk gets
+        /// removed first). Below the cap = zero overhead. Default 5000 keeps total PhysX shapes
+        /// well below the 64K MBP broadphase limit even at aggressive yield/density settings.
+        /// Range 500–20000.</summary>
+        public int MaxLooseItemCount = 5000;
+
+        /// <summary>Multiplier on Globals.autoExpireTimeoutChunks / Blocks / Crates. Default 1.0
+        /// = vanilla 5-minute timer per loose item. Lower values cull stale loose items faster
+        /// (keeps steady-state physics load down even when below the cap). Range 0.1–5.0.</summary>
+        public float LooseItemLifetimeMultiplier = 1.0f;
+
         public void Sanitize()
         {
             ResourceDensityMultiplier   = Mathf.Clamp(ResourceDensityMultiplier,   0f, 5f);
@@ -202,6 +285,14 @@ namespace WorldCustomizer
             DrillSpeedMultiplier        = Mathf.Clamp(DrillSpeedMultiplier,        0f, 50f);
             AutoMinerSpeedMultiplier    = Mathf.Clamp(AutoMinerSpeedMultiplier,    0f, 50f);
             AtmosphereDensityMultiplier = Mathf.Clamp(AtmosphereDensityMultiplier, 0f, 10f);
+            ScuPickupRangeMultiplier    = Mathf.Clamp(ScuPickupRangeMultiplier,    0.1f, 10f);
+            ScuBeamStrengthMultiplier   = Mathf.Clamp(ScuBeamStrengthMultiplier,   0.1f, 10f);
+            ScuStackCapacityMultiplier  = Mathf.Clamp(ScuStackCapacityMultiplier,  0.5f, 10f);
+            ScuLiftHeightMultiplier     = Mathf.Clamp(ScuLiftHeightMultiplier,     0.5f, 5f);
+            ScuPickupSpeedMultiplier    = Mathf.Clamp(ScuPickupSpeedMultiplier,    0.1f, 10f);
+            ScuItemsPerTickMultiplier   = Mathf.Clamp(ScuItemsPerTickMultiplier,   1f,   10f);
+            MaxLooseItemCount           = Mathf.Clamp(MaxLooseItemCount,           500, 20000);
+            LooseItemLifetimeMultiplier = Mathf.Clamp(LooseItemLifetimeMultiplier, 0.1f, 5f);
         }
 
         public bool IsAllDefaults()
@@ -211,7 +302,15 @@ namespace WorldCustomizer
                 && Mathf.Approximately(ResourceYieldMultiplier,     d.ResourceYieldMultiplier)
                 && Mathf.Approximately(DrillSpeedMultiplier,        d.DrillSpeedMultiplier)
                 && Mathf.Approximately(AutoMinerSpeedMultiplier,    d.AutoMinerSpeedMultiplier)
-                && Mathf.Approximately(AtmosphereDensityMultiplier, d.AtmosphereDensityMultiplier);
+                && Mathf.Approximately(AtmosphereDensityMultiplier, d.AtmosphereDensityMultiplier)
+                && Mathf.Approximately(ScuPickupRangeMultiplier,    d.ScuPickupRangeMultiplier)
+                && Mathf.Approximately(ScuBeamStrengthMultiplier,   d.ScuBeamStrengthMultiplier)
+                && Mathf.Approximately(ScuStackCapacityMultiplier,  d.ScuStackCapacityMultiplier)
+                && Mathf.Approximately(ScuLiftHeightMultiplier,     d.ScuLiftHeightMultiplier)
+                && Mathf.Approximately(ScuPickupSpeedMultiplier,    d.ScuPickupSpeedMultiplier)
+                && Mathf.Approximately(ScuItemsPerTickMultiplier,   d.ScuItemsPerTickMultiplier)
+                && MaxLooseItemCount == d.MaxLooseItemCount
+                && Mathf.Approximately(LooseItemLifetimeMultiplier, d.LooseItemLifetimeMultiplier);
         }
     }
 }

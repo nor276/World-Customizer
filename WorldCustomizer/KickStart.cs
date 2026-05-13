@@ -107,6 +107,24 @@ namespace WorldCustomizer
 
             try
             {
+                LooseItemPatches.Restore();
+            }
+            catch (Exception ex)
+            {
+                LogError("LooseItemPatches.Restore threw", ex);
+            }
+
+            try
+            {
+                ScuGlobals.Restore();
+            }
+            catch (Exception ex)
+            {
+                LogError("ScuGlobals.Restore threw", ex);
+            }
+
+            try
+            {
                 s_Harmony?.UnpatchAll(ModID);
                 s_Harmony = null;
             }

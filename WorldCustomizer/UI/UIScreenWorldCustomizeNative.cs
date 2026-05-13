@@ -235,6 +235,18 @@ namespace WorldCustomizer.UI
             AddSliderRow("Drill speed",        l.DrillSpeedMultiplier,        0f, 50f,  "0.0",  v => m_Working.Live.DrillSpeedMultiplier = v);
             AddSliderRow("AutoMiner speed",    l.AutoMinerSpeedMultiplier,    0f, 50f,  "0.0",  v => m_Working.Live.AutoMinerSpeedMultiplier = v);
             AddSliderRow("Atmosphere density", l.AtmosphereDensityMultiplier, 0f, 10f,  "0.00", v => m_Working.Live.AtmosphereDensityMultiplier = v);
+
+            AddSectionHeader("SCU / Pickup — changeable later");
+            AddSliderRow("Pickup range",       l.ScuPickupRangeMultiplier,    0.1f, 10f, "0.00", v => m_Working.Live.ScuPickupRangeMultiplier = v);
+            AddSliderRow("Beam pull strength", l.ScuBeamStrengthMultiplier,   0.1f, 10f, "0.00", v => m_Working.Live.ScuBeamStrengthMultiplier = v);
+            AddSliderRow("Stack capacity",     l.ScuStackCapacityMultiplier,  0.5f, 10f, "0.00", v => m_Working.Live.ScuStackCapacityMultiplier = v);
+            AddSliderRow("Lift height",        l.ScuLiftHeightMultiplier,     0.5f, 5f,  "0.00", v => m_Working.Live.ScuLiftHeightMultiplier = v);
+            AddSliderRow("Pickup speed",       l.ScuPickupSpeedMultiplier,    0.1f, 10f, "0.00", v => m_Working.Live.ScuPickupSpeedMultiplier = v);
+            AddSliderRow("Items per tick",     l.ScuItemsPerTickMultiplier,   1f,   10f, "0.00", v => m_Working.Live.ScuItemsPerTickMultiplier = v);
+
+            AddSectionHeader("Loose-item budget — changeable later");
+            AddSliderRow("Max loose items (cap)", l.MaxLooseItemCount,           500f, 20000f, "0",    v => m_Working.Live.MaxLooseItemCount = Mathf.RoundToInt(v));
+            AddSliderRow("Loose item lifetime",   l.LooseItemLifetimeMultiplier, 0.1f, 5f,     "0.00", v => m_Working.Live.LooseItemLifetimeMultiplier = v);
         }
 
         // ------------------------------------------------------------
@@ -487,6 +499,26 @@ namespace WorldCustomizer.UI
         private void ConfirmPressed()
         {
             m_Working.Sanitize();
+
+            if (LiveSettings.ShouldWarnAboutPhysicsLoad(m_Working.Live, out _, out string warning))
+            {
+                // Push a Yes/No popup on top of our popup. "Continue" proceeds with the normal
+                // confirm flow; "Back" just dismisses the warning and leaves the user on the
+                // customize screen so they can dial values down.
+                PopupHelper.ShowYesNo(
+                    message: warning,
+                    acceptLabel: "Continue",
+                    declineLabel: "Back",
+                    onAccept: DoConfirm,
+                    onDecline: () => { /* stay on customize screen */ });
+                return;
+            }
+
+            DoConfirm();
+        }
+
+        private void DoConfirm()
+        {
             var result = m_Working;
             var cb = m_OnConfirm;
             CloseAndDispose();
