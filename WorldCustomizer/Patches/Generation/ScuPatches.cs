@@ -115,16 +115,27 @@ namespace WorldCustomizer.Patches.Generation
     }
 
     /// <summary>
-    /// Scales <c>ModuleItemHolderBeam.m_BeamBaseHeight</c> per-instance. Raising this raises
-    /// the target Y of the in-flight chunk pull, so chunks settle higher up the stack and
-    /// clear obstacles (other blocks, terrain) on their way in. Combined with the global
-    /// <see cref="ScuGlobals.ApplyLiftCorrection"/> the trajectory becomes "rise then approach"
-    /// rather than the vanilla "diagonal scoop".
+    /// Biases the in-flight chunk trajectory upward via per-instance
+    /// <c>OverrideHeightCorrectionLiftFactor</c>. Multiplier scales the engine's vanilla
+    /// <c>holdBeamFloatParams.heightCorrectionLiftFactor</c> baseline — higher = chunks
+    /// rise more before approaching the stack horizontally, clearing obstacles on the way.
     /// </summary>
+    /// <remarks>
+    /// <para>Earlier revisions also scaled <c>m_BeamBaseHeight</c> to raise where chunks
+    /// settle on the stack. That broke absorption: the pre-pickup distance check in
+    /// <c>UpdateItemMovement</c> ([line 322 of ModuleItemHolderBeam.cs]) measures the chunk's
+    /// distance to the elevated stack target. Raising the target by N meters added N to
+    /// the effective distance, exceeding <c>PickupRange</c> for ground-level chunks → engine
+    /// drops them on grab → SCU appears not to suck items in. So we now leave the target
+    /// alone and only reshape the trajectory.</para>
+    /// <para>The override field <c>m_OverrideHeightCorrectionLiftFactor</c> is read in
+    /// <c>UpdateFloat</c> at line 603 with a guard: <c>>= 0f</c> uses the override,
+    /// otherwise the global. We always write the override at OnSpawn so the multiplier
+    /// applies cleanly to this beam without touching anyone else's tuning.</para>
+    /// </remarks>
     [HarmonyPatch(typeof(ModuleItemHolderBeam), "OnSpawn")]
     internal static class LiftHeightPatch
     {
-        private static readonly Dictionary<int, float> s_OriginalBaseHeight = new Dictionary<int, float>();
         private static bool s_LoggedFirstFire;
 
         private static void Postfix(ModuleItemHolderBeam __instance)
@@ -152,19 +163,17 @@ namespace WorldCustomizer.Patches.Generation
                 ?? SettingsStore.Current?.Live?.ScuLiftHeightMultiplier
                 ?? 1f;
 
-            int id = beam.GetInstanceID();
-            if (!s_OriginalBaseHeight.TryGetValue(id, out float original))
-            {
-                original = Reflect.GetField<float>(beam, "m_BeamBaseHeight");
-                s_OriginalBaseHeight[id] = original;
-            }
+            // Read the runtime global baseline so mod-adjusted defaults are honored.
+            float baseline = 0.5f;   // fallback to TT's vanilla initializer
+            Globals g = Globals.inst;
+            if (g != null) baseline = g.holdBeamFloatParams.heightCorrectionLiftFactor;
 
-            // [Range(0.01f, 10f)] on the field per the source attribute. Clamp to that.
-            float scaled = Mathf.Clamp(original * multiplier, 0.01f, 10f);
-            Reflect.SetField(beam, "m_BeamBaseHeight", scaled);
+            // Public API on the beam — engine's UpdateFloat reads m_OverrideHeightCorrectionLiftFactor
+            // and prefers it over the global when >= 0.
+            beam.OverrideHeightCorrectionLiftFactor(Mathf.Max(0.01f, baseline * multiplier));
         }
 
-        public static void ClearCache() => s_OriginalBaseHeight.Clear();
+        public static void ClearCache() => s_LoggedFirstFire = false;
     }
 
     /// <summary>
@@ -301,45 +310,6 @@ namespace WorldCustomizer.Patches.Generation
         }
 
         public static void ClearCache() { s_LoggedFirstFire = false; }
-    }
-
-    /// <summary>
-    /// One-shot mutations on global <c>Globals.inst.holdBeamFloatParams</c> fields. Currently
-    /// scales <c>heightCorrectionLiftFactor</c> (the in-flight vertical-bias) to complement
-    /// <see cref="LiftHeightPatch"/>'s per-instance <c>m_BeamBaseHeight</c> scaling.
-    /// </summary>
-    internal static class ScuGlobals
-    {
-        private static float? s_OriginalHeightCorrectionLiftFactor;
-
-        public static void ApplyLiftCorrection(float multiplier)
-        {
-            Globals g = Globals.inst;
-            if (g == null)
-            {
-                KickStart.LogWarning("ScuGlobals.ApplyLiftCorrection: Globals.inst is null; skipping");
-                return;
-            }
-
-            if (!s_OriginalHeightCorrectionLiftFactor.HasValue)
-                s_OriginalHeightCorrectionLiftFactor = g.holdBeamFloatParams.heightCorrectionLiftFactor;
-
-            // Vanilla default per Globals.cs is 0.5f. Clamp the result to keep wings on lift
-            // physics roughly sane — too low = chunks faceplant the tech body, too high = chunks
-            // launch into orbit on grab.
-            float scaled = Mathf.Clamp(s_OriginalHeightCorrectionLiftFactor.Value * multiplier, 0.05f, 50f);
-            g.holdBeamFloatParams.heightCorrectionLiftFactor = scaled;
-
-            KickStart.Log($"ScuGlobals.ApplyLiftCorrection: heightCorrectionLiftFactor {s_OriginalHeightCorrectionLiftFactor.Value:0.00} -> {scaled:0.00} (×{multiplier:0.00})");
-        }
-
-        public static void Restore()
-        {
-            Globals g = Globals.inst;
-            if (g != null && s_OriginalHeightCorrectionLiftFactor.HasValue)
-                g.holdBeamFloatParams.heightCorrectionLiftFactor = s_OriginalHeightCorrectionLiftFactor.Value;
-            s_OriginalHeightCorrectionLiftFactor = null;
-        }
     }
 
     [HarmonyPatch(typeof(ModuleItemHolder), "OnSpawn")]

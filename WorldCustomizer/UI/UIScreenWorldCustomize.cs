@@ -29,6 +29,14 @@ namespace WorldCustomizer.UI
         private Vector2 m_ScrollPos;
         private Rect m_WindowRect;
 
+        // Inline warning state (rendered as a second GUI.Window on top of m_WindowRect when set).
+        // We don't use PopupHelper from inside an already-pushed popup — see the comment in
+        // UIScreenWorldCustomizeNative.BuildWarningOverlay for why.
+        private bool m_WarningVisible;
+        private string m_WarningMessage;
+        private Rect m_WarningRect;
+        private const int WarningWindowID = 0x57435A57;
+
         // ------------------------------------------------------------
         // Factory + show
         // ------------------------------------------------------------
@@ -88,6 +96,37 @@ namespace WorldCustomizer.UI
         {
             if (state != State.Show) return;
             m_WindowRect = GUI.Window(WindowID, m_WindowRect, DrawWindow, "World Customization");
+
+            if (m_WarningVisible)
+            {
+                if (m_WarningRect.width <= 0f)
+                {
+                    const int w = 520, h = 280;
+                    m_WarningRect = new Rect((Screen.width - w) * 0.5f, (Screen.height - h) * 0.5f, w, h);
+                }
+                // ModalWindow blocks input to the underlying window while shown.
+                m_WarningRect = GUI.ModalWindow(WarningWindowID, m_WarningRect, DrawWarning, "Confirm extreme settings");
+            }
+        }
+
+        private void DrawWarning(int id)
+        {
+            GUILayout.Space(8);
+            GUILayout.Label(m_WarningMessage ?? string.Empty, GUILayout.ExpandHeight(true));
+            GUILayout.FlexibleSpace();
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Back", GUILayout.Height(36), GUILayout.Width(140)))
+            {
+                m_WarningVisible = false;
+            }
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Continue", GUILayout.Height(36), GUILayout.Width(140)))
+            {
+                m_WarningVisible = false;
+                DoConfirm();
+            }
+            GUILayout.EndHorizontal();
+            GUI.DragWindow(new Rect(0, 0, 10000, 24));
         }
 
         private void DrawWindow(int id)
@@ -201,12 +240,8 @@ namespace WorldCustomizer.UI
 
             if (LiveSettings.ShouldWarnAboutPhysicsLoad(m_Working.Live, out _, out string warning))
             {
-                PopupHelper.ShowYesNo(
-                    message: warning,
-                    acceptLabel: "Continue",
-                    declineLabel: "Back",
-                    onAccept: DoConfirm,
-                    onDecline: () => { /* stay on customize screen */ });
+                m_WarningMessage = warning;
+                m_WarningVisible = true;
                 return;
             }
 

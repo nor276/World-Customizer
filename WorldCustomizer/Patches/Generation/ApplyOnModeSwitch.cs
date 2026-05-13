@@ -99,10 +99,8 @@ namespace WorldCustomizer.Patches.Generation
             LiftHeightPatch.ApplyToAllLoaded(l.ScuLiftHeightMultiplier);
             PickupSpeedPatch.ApplyToAllLoaded(l.ScuPickupSpeedMultiplier);
 
-            // Global lift-correction (paired with LiftHeightPatch's per-instance work).
             // MultiPickPatch reads the multiplier directly each tick — no apply-time walk
             // needed for that one.
-            ScuGlobals.ApplyLiftCorrection(l.ScuLiftHeightMultiplier);
 
             // Loose-item physics-pressure relief: scale autoExpire timers. The MaxLooseItemCount
             // cap is applied via Harmony getter Postfix (MaxLooseItemPatch), so no call needed

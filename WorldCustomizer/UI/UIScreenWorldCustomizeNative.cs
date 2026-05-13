@@ -23,6 +23,8 @@ namespace WorldCustomizer.UI
         private Action m_OnCancel;
         private GameObject m_BackdropRoot;
         private RectTransform m_ContentRT;
+        private GameObject m_WarningOverlay;
+        private Text m_WarningText;
 
         public static void CreateAndShow(Settings initial, Action<Settings> onConfirm, Action onCancel)
         {
@@ -215,6 +217,88 @@ namespace WorldCustomizer.UI
             AddBarButton(buttonBar, "Confirm", new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(1f, 0.5f), new Vector2(160f, 44f), new Vector2(0f, 0f), ConfirmPressed);
             // Cancel (just left of Confirm)
             AddBarButton(buttonBar, "Cancel", new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(1f, 0.5f), new Vector2(140f, 44f), new Vector2(-170f, 0f), CancelPressed);
+
+            // Warning overlay (sibling of Panel, hidden by default). Built inline rather than
+            // via PopupHelper / PushScreenAsPopup because pushing a second NotificationScreen
+            // on top of our already-popup-stacked customize screen does not display — UI
+            // stack mechanics quietly drop the second popup and our onDecline (no-op) fires,
+            // making the Confirm button look broken from the user's perspective.
+            BuildWarningOverlay();
+        }
+
+        private void BuildWarningOverlay()
+        {
+            m_WarningOverlay = NewChild(m_BackdropRoot, "WarningOverlay");
+            var overlayRT = m_WarningOverlay.GetComponent<RectTransform>();
+            StretchToParent(overlayRT);
+            var dim = m_WarningOverlay.AddComponent<Image>();
+            dim.color = new Color(0f, 0f, 0f, 0.55f);
+            dim.raycastTarget = true;   // block clicks to the customize panel beneath
+
+            var warnPanel = NewChild(m_WarningOverlay, "WarnPanel");
+            var warnRT = warnPanel.GetComponent<RectTransform>();
+            warnRT.anchorMin = new Vector2(0.5f, 0.5f);
+            warnRT.anchorMax = new Vector2(0.5f, 0.5f);
+            warnRT.pivot     = new Vector2(0.5f, 0.5f);
+            warnRT.sizeDelta = new Vector2(620f, 300f);
+            var panelImg = warnPanel.AddComponent<Image>();
+            panelImg.color = new Color(0.18f, 0.10f, 0.10f, 0.98f);
+
+            // Title
+            var title = NewChild(warnPanel, "Title");
+            var titleRT = title.GetComponent<RectTransform>();
+            titleRT.anchorMin = new Vector2(0f, 1f);
+            titleRT.anchorMax = new Vector2(1f, 1f);
+            titleRT.pivot     = new Vector2(0.5f, 1f);
+            titleRT.sizeDelta = new Vector2(0f, 44f);
+            titleRT.anchoredPosition = Vector2.zero;
+            var titleText = title.AddComponent<Text>();
+            titleText.text = "Confirm extreme settings";
+            titleText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            titleText.fontSize = 22;
+            titleText.fontStyle = FontStyle.Bold;
+            titleText.color = new Color(1f, 0.85f, 0.4f, 1f);
+            titleText.alignment = TextAnchor.MiddleCenter;
+
+            // Message body
+            var msg = NewChild(warnPanel, "Message");
+            var msgRT = msg.GetComponent<RectTransform>();
+            msgRT.anchorMin = new Vector2(0f, 0f);
+            msgRT.anchorMax = new Vector2(1f, 1f);
+            msgRT.offsetMin = new Vector2(24f, 80f);
+            msgRT.offsetMax = new Vector2(-24f, -52f);
+            m_WarningText = msg.AddComponent<Text>();
+            m_WarningText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            m_WarningText.fontSize = 16;
+            m_WarningText.color = Color.white;
+            m_WarningText.alignment = TextAnchor.MiddleCenter;
+            m_WarningText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            m_WarningText.text = string.Empty;
+
+            // Buttons row (Continue + Back) at the bottom of the panel
+            AddBarButton(warnPanel, "Continue",
+                anchorMin: new Vector2(0.5f, 0f), anchorMax: new Vector2(0.5f, 0f), pivot: new Vector2(0.5f, 0f),
+                size: new Vector2(150f, 44f), offset: new Vector2(-85f, 24f),
+                onClick: () => { HideWarning(); DoConfirm(); });
+            AddBarButton(warnPanel, "Back",
+                anchorMin: new Vector2(0.5f, 0f), anchorMax: new Vector2(0.5f, 0f), pivot: new Vector2(0.5f, 0f),
+                size: new Vector2(150f, 44f), offset: new Vector2(85f, 24f),
+                onClick: HideWarning);
+
+            m_WarningOverlay.SetActive(false);
+        }
+
+        private void ShowWarning(string message)
+        {
+            if (m_WarningOverlay == null) return;
+            if (m_WarningText != null) m_WarningText.text = message;
+            m_WarningOverlay.transform.SetAsLastSibling();
+            m_WarningOverlay.SetActive(true);
+        }
+
+        private void HideWarning()
+        {
+            if (m_WarningOverlay != null) m_WarningOverlay.SetActive(false);
         }
 
         private void PopulateRows()
@@ -502,15 +586,7 @@ namespace WorldCustomizer.UI
 
             if (LiveSettings.ShouldWarnAboutPhysicsLoad(m_Working.Live, out _, out string warning))
             {
-                // Push a Yes/No popup on top of our popup. "Continue" proceeds with the normal
-                // confirm flow; "Back" just dismisses the warning and leaves the user on the
-                // customize screen so they can dial values down.
-                PopupHelper.ShowYesNo(
-                    message: warning,
-                    acceptLabel: "Continue",
-                    declineLabel: "Back",
-                    onAccept: DoConfirm,
-                    onDecline: () => { /* stay on customize screen */ });
+                ShowWarning(warning);
                 return;
             }
 

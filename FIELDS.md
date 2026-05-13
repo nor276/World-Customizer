@@ -435,30 +435,30 @@ would assert-fail somewhere downstream.
 | User-facing label | `Lift height` |
 | Slider range | `0.5 – 5.0` (default `1.0`) |
 | Settings field | `Live.ScuLiftHeightMultiplier` |
-| Engine targets | `ModuleItemHolderBeam.m_BeamBaseHeight` (per-instance, vanilla `1f`, clamped `[0.01, 10]`) + `Globals.holdBeamFloatParams.heightCorrectionLiftFactor` (global, vanilla `0.5f`) |
-| Patches | `LiftHeightPatch` (per-instance) + `ScuGlobals.ApplyLiftCorrection` (global, one-shot at `ApplyTier2`) |
+| Engine target | `ModuleItemHolderBeam.m_OverrideHeightCorrectionLiftFactor` (per-instance, set via the public `OverrideHeightCorrectionLiftFactor(float)` API; the engine reads it in `UpdateFloat` at line 603 with a `>= 0` guard, preferring it over `Globals.holdBeamFloatParams.heightCorrectionLiftFactor`'s vanilla `0.5f`) |
+| Patch | `LiftHeightPatch` |
 
-**Mechanics.** Bundles two complementary mutations:
+**Mechanics.** OnSpawn postfix + `ApplyToAllLoaded` walk. Reads the runtime
+global baseline `holdBeamFloatParams.heightCorrectionLiftFactor`, multiplies
+by the slider, and writes the result through the public per-instance
+override. The override biases the in-flight pull force vertically: higher
+= chunks rise *first*, then approach horizontally, so they clear wheels,
+neighboring blocks, or low terrain on the way to the stack.
 
-* **`m_BeamBaseHeight`** scales the offset above the stack base where the
-  lowest held item sits. Raising it raises the *target* the in-flight
-  chunk is being pulled toward.
-* **`heightCorrectionLiftFactor`** biases the in-flight pull-force
-  vertically (see `ModuleItemHolderBeam.UpdateFloat`, the term
-  `vector3 += upDir * num8`). Scaling this makes chunks rise toward the
-  stack height *first*, then approach horizontally, instead of taking a
-  diagonal scoop path.
+**Doubt / caveats.** An earlier revision also scaled
+`m_BeamBaseHeight` to raise where chunks settle on the stack. That was
+removed — raising the stack target by N meters added N to the effective
+pre-pickup distance the engine measures in `UpdateItemMovement`
+(line 322), making ground-level chunks exceed `PickupRange` and get
+dropped on grab. The SCU appeared to "not suck items in". The current
+trajectory-only approach via `OverrideHeightCorrectionLiftFactor` leaves
+the destination alone, so absorption works normally while still giving
+the "rise first" path the obstacle-clearing was meant to achieve.
 
-Combined, multiplier 3.0 keeps SCUs from dragging chunks through wheels /
-terrain / nearby blocks on the way in.
-
-**Doubt / caveats.** Original `m_BeamBaseHeight` cached per `GetInstanceID`
-and clamped to the engine's `[Range(0.01, 10)]` after scaling. The global
-lift factor is cached on first apply and restored on `KickStart.DeInit` so
-the mutation doesn't leak across mod reloads. At very high lift (×5) on
-small SCUs you may see chunks launch up out of the holder briefly before
-the pull settles them — engine clamps the force vector at `2000f` so it
-won't escape, but the visual is a bit bouncy.
+Per-instance via the public override API — no global mutation, no
+restore needed on `DeInit`. Each beam's override falls back to its
+vanilla resolution path if the multiplier is `1.0` and the override is
+near the baseline.
 
 ### SCU / pickup speed (`ScuPickupSpeedMultiplier`)
 
