@@ -30,6 +30,10 @@ namespace WorldCustomizer
                 LoadMalformedFileReturnsNull,
                 PromoteAndDiscardWork,
                 SidecarPathSuffix,
+                AtomicSaveLeavesNoTempFile,
+                LoadForOrDefaultsSidecar,
+                LoadForOrDefaultsMissing,
+                LoadForOrDefaultsMalformed,
             };
 
             int passed = 0;
@@ -232,6 +236,97 @@ namespace WorldCustomizer
             if (sidecar != @"C:\saves\MyWorld.json.worldgen.json")
                 return Fail(nameof(SidecarPathSuffix), $"got '{sidecar}'");
             return true;
+        }
+
+        /// <summary>
+        /// Atomic SaveToFile uses a same-directory temp file then File.Copy. The finally
+        /// block must delete the temp file on every code path. A regression that drops the
+        /// finally — or moves the temp to %TEMP% — would either leak .tmp files into the
+        /// player's saves folder or silently revert to non-atomic File.WriteAllText.
+        /// </summary>
+        private static bool AtomicSaveLeavesNoTempFile()
+        {
+            string dir = Path.Combine(Path.GetTempPath(), "WorldCustomizer-atomic-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            try
+            {
+                string path = Path.Combine(dir, "save.worldgen.json");
+                Settings original = Settings.CreateDefaults();
+                if (!SettingsStore.SaveToFile(path, original))
+                    return Fail(nameof(AtomicSaveLeavesNoTempFile), "save returned false");
+
+                if (!File.Exists(path))
+                    return Fail(nameof(AtomicSaveLeavesNoTempFile), "target not written");
+
+                string[] siblings = Directory.GetFiles(dir);
+                foreach (string s in siblings)
+                {
+                    if (s.EndsWith(".worldgen.tmp", StringComparison.OrdinalIgnoreCase))
+                        return Fail(nameof(AtomicSaveLeavesNoTempFile), $"temp file leaked: '{s}'");
+                }
+                if (siblings.Length != 1)
+                    return Fail(nameof(AtomicSaveLeavesNoTempFile), $"expected 1 file, found {siblings.Length}");
+                return true;
+            }
+            finally
+            {
+                try { Directory.Delete(dir, recursive: true); } catch { /* best-effort */ }
+            }
+        }
+
+        private static bool LoadForOrDefaultsSidecar()
+        {
+            string path = TempPath("lfo-sidecar");
+            try
+            {
+                Settings original = Settings.CreateDefaults();
+                original.Live.DrillSpeedMultiplier = 9f;
+                if (!SettingsStore.SaveFor(path, original))
+                    return Fail(nameof(LoadForOrDefaultsSidecar), "save returned false");
+
+                Settings loaded = SettingsStore.LoadForOrDefaults(path, out SidecarLoadSource source);
+                if (source != SidecarLoadSource.Sidecar)
+                    return Fail(nameof(LoadForOrDefaultsSidecar), $"expected Sidecar source, got {source}");
+                if (loaded == null || loaded.Live.DrillSpeedMultiplier != 9f)
+                    return Fail(nameof(LoadForOrDefaultsSidecar), "loaded value did not round-trip");
+                return true;
+            }
+            finally { TryDelete(SettingsStore.GetSidecarPath(path)); }
+        }
+
+        private static bool LoadForOrDefaultsMissing()
+        {
+            string path = TempPath("lfo-missing");
+            TryDelete(SettingsStore.GetSidecarPath(path));
+
+            Settings loaded = SettingsStore.LoadForOrDefaults(path, out SidecarLoadSource source);
+            if (source != SidecarLoadSource.MissingDefaulted)
+                return Fail(nameof(LoadForOrDefaultsMissing), $"expected MissingDefaulted, got {source}");
+            if (loaded == null)
+                return Fail(nameof(LoadForOrDefaultsMissing), "should never return null");
+            if (!loaded.IsAllDefaults())
+                return Fail(nameof(LoadForOrDefaultsMissing), "returned non-default Settings");
+            return true;
+        }
+
+        private static bool LoadForOrDefaultsMalformed()
+        {
+            string path = TempPath("lfo-malformed");
+            string sidecar = SettingsStore.GetSidecarPath(path);
+            try
+            {
+                File.WriteAllText(sidecar, "{not valid json");
+
+                Settings loaded = SettingsStore.LoadForOrDefaults(path, out SidecarLoadSource source);
+                if (source != SidecarLoadSource.MalformedDefaulted)
+                    return Fail(nameof(LoadForOrDefaultsMalformed), $"expected MalformedDefaulted, got {source}");
+                if (loaded == null)
+                    return Fail(nameof(LoadForOrDefaultsMalformed), "should never return null");
+                if (!loaded.IsAllDefaults())
+                    return Fail(nameof(LoadForOrDefaultsMalformed), "returned non-default Settings");
+                return true;
+            }
+            finally { TryDelete(sidecar); }
         }
 
         private static bool SettingsEqual(Settings a, Settings b)

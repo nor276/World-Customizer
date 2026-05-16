@@ -68,7 +68,12 @@ namespace WorldCustomizer.Patches
                 onDecline: () =>
                 {
                     KickStart.Log("NewGameHook: user picked Use Defaults");
-                    SettingsStore.Pending = null;   // ensures defaults at apply time
+                    // Set Pending to an explicit defaults instance, NOT null. The Promote()
+                    // fallback chain is Pending ?? Current ?? defaults, so leaving Pending
+                    // null after the user has already played a customized world this session
+                    // would have Promote fall through to that world's Current — silently
+                    // applying the prior world's settings to this "default" new game.
+                    SettingsStore.Pending = Settings.CreateDefaults();
                     ProceedToGameStart(screen);
                 });
 
