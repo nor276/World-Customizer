@@ -169,6 +169,10 @@ namespace WorldCustomizer.UI
             l.MaxLooseItemCount           = Mathf.RoundToInt(LabelSlider("Max loose items (cap)", l.MaxLooseItemCount, 500f, 20000f, "0"));
             l.LooseItemLifetimeMultiplier = LabelSlider("Loose item lifetime", l.LooseItemLifetimeMultiplier, 0.1f, 5.0f, "0.00");
 
+            GUILayout.Space(12);
+            GUILayout.Label("Combat / Salvage (changeable later)", BoldStyle());
+            l.BlockDetachHealAmount       = LabelSlider("Detached-block heal", l.BlockDetachHealAmount, 0f, 1f, "0.00");
+
             GUILayout.EndScrollView();
 
             GUILayout.Space(8);

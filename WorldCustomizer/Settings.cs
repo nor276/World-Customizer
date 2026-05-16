@@ -63,6 +63,7 @@ namespace WorldCustomizer
             copy.Live.ScuItemsPerTickMultiplier   = src.Live.ScuItemsPerTickMultiplier;
             copy.Live.MaxLooseItemCount           = src.Live.MaxLooseItemCount;
             copy.Live.LooseItemLifetimeMultiplier = src.Live.LooseItemLifetimeMultiplier;
+            copy.Live.BlockDetachHealAmount       = src.Live.BlockDetachHealAmount;
             return copy;
         }
 
@@ -278,6 +279,15 @@ namespace WorldCustomizer
         /// (keeps steady-state physics load down even when below the cap). Range 0.1–5.0.</summary>
         public float LooseItemLifetimeMultiplier = 1.0f;
 
+        /// <summary>Fraction of MaxHealth to top a block up to when it detaches from a tech.
+        /// 0 = vanilla (block keeps whatever HP it had at detach; will die from leftover damage
+        /// or neighbor explosions). 1 = full heal (block restored to MaxHealth on detach, making
+        /// it largely immune to chain-reaction destruction). The patch also calls AbortSelfDestruct
+        /// so blocks the engine marked for "explode on detach" (tech-death scenario) are spared.
+        /// Applies to all techs — player and non-player — and is checked per-detach against the
+        /// live setting, so changing the slider mid-game takes effect on the next detach. Range 0–1.</summary>
+        public float BlockDetachHealAmount = 0.0f;
+
         public void Sanitize()
         {
             ResourceDensityMultiplier   = Mathf.Clamp(ResourceDensityMultiplier,   0f, 5f);
@@ -293,6 +303,7 @@ namespace WorldCustomizer
             ScuItemsPerTickMultiplier   = Mathf.Clamp(ScuItemsPerTickMultiplier,   1f,   10f);
             MaxLooseItemCount           = Mathf.Clamp(MaxLooseItemCount,           500, 20000);
             LooseItemLifetimeMultiplier = Mathf.Clamp(LooseItemLifetimeMultiplier, 0.1f, 5f);
+            BlockDetachHealAmount       = Mathf.Clamp01(BlockDetachHealAmount);
         }
 
         public bool IsAllDefaults()
@@ -310,7 +321,8 @@ namespace WorldCustomizer
                 && Mathf.Approximately(ScuPickupSpeedMultiplier,    d.ScuPickupSpeedMultiplier)
                 && Mathf.Approximately(ScuItemsPerTickMultiplier,   d.ScuItemsPerTickMultiplier)
                 && MaxLooseItemCount == d.MaxLooseItemCount
-                && Mathf.Approximately(LooseItemLifetimeMultiplier, d.LooseItemLifetimeMultiplier);
+                && Mathf.Approximately(LooseItemLifetimeMultiplier, d.LooseItemLifetimeMultiplier)
+                && Mathf.Approximately(BlockDetachHealAmount,       d.BlockDetachHealAmount);
         }
     }
 }

@@ -339,11 +339,28 @@ namespace WorldCustomizer.Patches.Generation
         {
             if (holder == null) return;
 
+            int id = holder.GetInstanceID();
+
+            // Conveyors use ModuleItemHolder as a fixed-size transit buffer; their flow
+            // logic indexes into the slot array with assumptions baked at construction.
+            // Resizing the capacity at runtime makes items skip, duplicate, or stick.
+            // Detect conveyor blocks via the colocated ModuleItemConveyor and leave them
+            // at their vanilla capacity. If we previously patched this instance under
+            // an older mod version (cached original ≠ current), restore.
+            if (holder.GetComponent<ModuleItemConveyor>() != null)
+            {
+                if (s_OriginalCapacity.TryGetValue(id, out int originalConveyor))
+                {
+                    holder.OverrideStackCapacity(originalConveyor);
+                    s_OriginalCapacity.Remove(id);
+                }
+                return;
+            }
+
             float multiplier = overrideMultiplier
                 ?? SettingsStore.Current?.Live?.ScuStackCapacityMultiplier
                 ?? 1f;
 
-            int id = holder.GetInstanceID();
             if (!s_OriginalCapacity.TryGetValue(id, out int original))
             {
                 original = Reflect.GetField<int>(holder, "m_CapacityPerStack");

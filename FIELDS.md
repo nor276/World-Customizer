@@ -564,6 +564,46 @@ minutes, hoarder mode.
 that are mid-timeout when the multiplier changes keep their current timer
 — the new value is read only when a timer is next set.
 
+### Detached-block heal (`BlockDetachHealAmount`)
+
+| | |
+|---|---|
+| User-facing label | `Detached-block heal` |
+| Slider range | `0.0 – 1.0` (default `0.0`) |
+| Display semantics | `0` = vanilla (no heal). `1` = top blocks back to full HP on detach. Intermediate values cap the heal at that fraction of MaxHealth. |
+| Settings field | `Live.BlockDetachHealAmount` |
+| Engine target | `Damageable.Repair` + `ModuleDamage.AbortSelfDestruct` on every block that vanilla `TankBlock.CheckLooseDestruction` would have destroyed |
+| Patch | `Patches/Generation/BlockDetachHealPatch.cs` → Harmony postfix on `TankBlock.CheckLooseDestruction(Tank prevTech)` |
+
+**Mechanics.** Vanilla `CheckLooseDestruction` is called for every block that
+leaves a tech. It arms `damage.SelfDestruct(fuseTime)` on the detaching
+block in two cases: (1) the dying tech has `ShouldExplodeDetachingBlocks`
+set — the tech-death cab-explosion scenario where every detaching block is
+on a short fuse; (2) the engine's per-block `m_BlockSurvivalChance` roll
+fails (vanilla default `0.5` → ~half of detaching enemy blocks despawn).
+Vanilla already has a single rescue path — `m_PreventSelfDestructOnFirstDetach`
+on first detach for enemy techs only — but that doesn't help on the
+tech-death case where most non-wheel blocks die from chain-reaction AoE
+damage as the cab explodes.
+
+The postfix runs after all vanilla branches have decided their outcome and
+unconditionally undoes the destruction when the setting is `> 0`:
+`AbortSelfDestruct()` cancels any armed fuse, then `Damageable.Repair`
+tops the HP up to `MaxHealth × setting`. The heal is what actually
+prevents the chain reaction: blocks that detach intact at low HP normally
+die from leftover damage delivered before they're out of the explosion
+radius — restoring HP gives them a buffer.
+
+**Doubt / caveats.** Scope is global by design: the rescue applies to player
+techs as well, so your own weapons survive cab-loss the same way. Setting
+`0` is a strict early-return that never touches a `Repair` or
+`AbortSelfDestruct` call, so leaving the slider at default is bit-identical
+to vanilla. The `Invulnerable` check skips blocks the engine has flagged as
+indestructible (training dummies, mission props) so we don't accidentally
+heal something that shouldn't be touched. We read
+`SettingsStore.Current.Live` per detach event rather than caching, so
+mid-session slider changes take effect on the next block to fall off.
+
 ---
 
 ## Physics-engine limits — read before pushing sliders to the maximum

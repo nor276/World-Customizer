@@ -331,6 +331,9 @@ namespace WorldCustomizer.UI
             AddSectionHeader("Loose-item budget — changeable later");
             AddSliderRow("Max loose items (cap)", l.MaxLooseItemCount,           500f, 20000f, "0",    v => m_Working.Live.MaxLooseItemCount = Mathf.RoundToInt(v));
             AddSliderRow("Loose item lifetime",   l.LooseItemLifetimeMultiplier, 0.1f, 5f,     "0.00", v => m_Working.Live.LooseItemLifetimeMultiplier = v);
+
+            AddSectionHeader("Combat / Salvage — changeable later");
+            AddSliderRow("Detached-block heal",   l.BlockDetachHealAmount,       0f,   1f,     "0.00", v => m_Working.Live.BlockDetachHealAmount = v);
         }
 
         // ------------------------------------------------------------

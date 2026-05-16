@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using WorldCustomizer.Integration;
 
 namespace WorldCustomizer.Patches.Generation
 {
@@ -37,6 +38,18 @@ namespace WorldCustomizer.Patches.Generation
             catch (Exception ex)
             {
                 KickStart.LogError("OnModeSwitch: apply failed", ex);
+            }
+
+            // Push Current.Live into the Native Options sliders so the in-game pause-menu
+            // panel reflects the world's actual settings. No-op if Native Options isn't
+            // installed.
+            try
+            {
+                NativeOptionsBridge.SyncFromCurrent();
+            }
+            catch (Exception ex)
+            {
+                KickStart.LogError("OnModeSwitch: NativeOptionsBridge.SyncFromCurrent failed", ex);
             }
         }
 

@@ -59,6 +59,16 @@ the world exists.
 Per-world settings are saved alongside the save file in
 `<savefile>.worldgen.json`, so each world remembers its own customization.
 
+### Retuning mid-game
+
+The "Gameplay" multipliers above can be retuned after a world exists. If you
+have [Native Options](https://steamcommunity.com/sharedfiles/filedetails/?id=2685130411)
+installed, a **World Customizer** page appears in the in-game Options menu
+with sliders for every live-tunable field — changes take effect on the
+running world immediately, no save reload needed. Native Options is optional;
+without it the mod still works for new-world setup, you just won't have a
+mid-game UI.
+
 ### Notes on extreme settings
 
 Pushing several sliders toward the high end of their range at the same

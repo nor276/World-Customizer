@@ -1,6 +1,7 @@
 using System;
 using HarmonyLib;
 using UnityEngine;
+using WorldCustomizer.Integration;
 using WorldCustomizer.Patches.Generation;
 
 namespace WorldCustomizer
@@ -70,6 +71,15 @@ namespace WorldCustomizer
             catch (Exception ex)
             {
                 LogError("ModeSwitchEvent subscribe threw", ex);
+            }
+
+            try
+            {
+                NativeOptionsBridge.Register();
+            }
+            catch (Exception ex)
+            {
+                LogError("NativeOptionsBridge.Register threw", ex);
             }
 
             Log("init complete");
